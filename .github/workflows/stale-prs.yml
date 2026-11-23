@@ -1,0 +1,93 @@
+# Proposed stale-PR workflow 
+
+name: Stale pull requests
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # daily, 00:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log what would happen without changing any PRs"
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: stale-prs
+  cancel-in-progress: false
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark and close stale PRs
+        uses: actions/stale@v11
+        with:
+          debug-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          operations-per-run: 500
+
+          # PRs only: never touch issues.
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+
+          # Only PRs that have already had the 14-day reminder.
+          only-pr-labels: inactive
+          exempt-pr-labels: keep-open,needs review
+          exempt-draft-pr: false # policy decision: set true to exempt drafts
+
+          days-before-pr-stale: 14 # counted from the reminder, so day 28 overall
+          days-before-pr-close: 7 # day 35 overall
+          stale-pr-label: stale
+          close-pr-label: stale-closed # keeps closed PRs easy to find
+          labels-to-remove-when-unstale: inactive
+          stale-pr-message: >
+            This pull request has had no activity for 4 weeks, including 2 weeks
+            since the last reminder, so it has been marked **stale**. It will be
+            closed in 7 days unless there is new activity.
+
+
+            If you are still working on it, please **leave a comment** to remove
+            the stale label. Pushing commits alone keeps the PR open for another 7
+            days but doesn't remove the label. If you are waiting for a review,
+            say so and a maintainer will follow up.
+            See the [stale PR policy](LINK-TO-POLICY).
+          close-pr-message: >
+            This pull request has been closed after 5 weeks without activity.
+
+
+            If you would like to continue, please **ask a maintainer to reopen it
+            before pushing new commits**. Anyone may also start a new PR that
+            builds on this one, linking it and crediting the original author.
+            See the [stale PR policy](LINK-TO-POLICY).
+
+      # Step 2: 14-day reminder. Never closes anything.
+      - name: Remind after 14 days without activity
+        uses: actions/stale@v11
+        with:
+          debug-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          operations-per-run: 500
+
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+
+          exempt-pr-labels: stale,keep-open,needs review
+          exempt-draft-pr: false # keep in step with step 1
+
+          days-before-pr-stale: 14
+          days-before-pr-close: -1 # this step never closes
+          stale-pr-label: inactive
+          stale-pr-message: >
+            This pull request hasn't had any activity for 2 weeks. Has it been
+            forgotten about?
+
+
+            If you're still working on it, or waiting on a review, a quick comment
+            is enough to keep it open. If you can't continue, please say so, so
+            someone else can pick it up. Without activity it will be marked stale
+            in 2 weeks and closed a week after that.
+            See the [stale PR policy](LINK-TO-POLICY).
